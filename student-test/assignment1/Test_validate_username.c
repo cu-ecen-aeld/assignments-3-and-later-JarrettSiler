@@ -18,7 +18,11 @@ void test_validate_my_username()
      * TODO: Replace the line below with your code here as described above to verify your /conf/username.txt 
      * config file and my_username() functions are setup properly
      */
+<<<<<<< HEAD
     const char *usernamelocal = my_username();
     const char *usernamefromgithub = malloc_username_from_conf_file();
     TEST_ASSERT_EQUAL_STRING_MESSAGE(usernamelocal, usernamefromgithub, "error, local and github usernames do not match, see Test_validate_username.c");
+=======
+    TEST_ASSERT_TRUE_MESSAGE(false,"AESD students, please fix me!");
+>>>>>>> 628425a9da1c2b4dc8adb456a4f74b9163e1dbc2
 }

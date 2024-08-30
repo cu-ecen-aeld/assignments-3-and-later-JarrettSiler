@@ -27,5 +27,9 @@ bool this_function_returns_false()
  */
 const char *my_username()
 {
+<<<<<<< HEAD
     return "JarrettSiler";
+=======
+    return "todo-please-enter-your-username-here-in-my_username";
+>>>>>>> 628425a9da1c2b4dc8adb456a4f74b9163e1dbc2
 }
