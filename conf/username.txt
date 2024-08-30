@@ -1,5 +1,1 @@
-<<<<<<< HEAD
 JarrettSiler
-=======
-your-github-username-here-in-conf-file
->>>>>>> 628425a9da1c2b4dc8adb456a4f74b9163e1dbc2
