@@ -49,10 +49,10 @@ then
 	fi
 fi
 
-#assignment 2
-echo "Removing the old writer utility and compiling as a native application"
-make clean
-make
+#assignment 3 removes these lines from assignment 2
+#echo "Removing the old writer utility and compiling as a native application"
+#make clean
+#make
 
 for i in $( seq 1 $NUMFILES)
 do
