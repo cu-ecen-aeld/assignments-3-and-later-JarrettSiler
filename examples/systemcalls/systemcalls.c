@@ -1,5 +1,6 @@
 #include "systemcalls.h"
 #include <stdlib.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -67,7 +68,10 @@ bool do_exec(int count, ...)
         perror("execv failed");
         exit(EXIT_FAILURE);
     }
-    if (wait(NULL) < 0) {
+
+    //have the parent process wait for child to terminate
+    int status;
+    if (wait(&status) < 0) {
         perror("wait failed");
         return false;
     }
@@ -80,6 +84,10 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
+    //did child fail?
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        return false;
+    }
 
     return true;
 }
@@ -117,7 +125,10 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         perror("execv failed");
         exit(EXIT_FAILURE);
     }
-    if (wait(NULL) < 0) {
+
+    //have the parent process wait for child to terminate
+    int status;
+    if (wait(&status) < 0) {
         perror("wait failed");
         return false;
     }
@@ -128,5 +139,10 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
  *   The rest of the behaviour is same as do_exec()
  *
 */
+    //did child fail?
+    if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        return false;
+    }
+
     return true;
 }
