@@ -120,6 +120,11 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         perror("fork failed");
         return false;
     } else if (pid == 0) {
+        if (dup2(fd, 1) < 0) { 
+            perror("dup2"); 
+            abort(); 
+        }
+        close(fd);
         execv (command[0], command);
         //this part should not be reached
         perror("execv failed");
@@ -130,6 +135,7 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
     int status;
     if (wait(&status) < 0) {
         perror("wait failed");
+        close(fd);
         return false;
     }
 /*
@@ -141,8 +147,10 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
 */
     //did child fail?
     if (WIFEXITED(status) && WEXITSTATUS(status) != 0) {
+        close(fd);
         return false;
     }
 
+    close(fd);
     return true;
 }
