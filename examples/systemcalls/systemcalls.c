@@ -1,5 +1,8 @@
 #include "systemcalls.h"
 #include <stdlib.h>
+#include <sys/types.h>
+#include <fcntl.h>
+#include <unistd.h>
 
 /**
  * @param cmd the command to execute with system()
@@ -50,10 +53,24 @@ bool do_exec(int count, ...)
     command[count] = NULL;
     // this line is to avoid a compile warning before your implementation is complete
     // and may be removed
-    command[count] = command[count];
+    va_end(args);
 
+    pid_t pid = fork ();
+    if (pid < 0) {
+        perror("fork failed");
+        return false;
+    } else if (pid == 0) {
+        execv (command[0], command);
+        //this part should not be reached
+        perror("execv failed");
+        exit(EXIT_FAILURE);
+    }
+    if (wait(NULL) < 0) {
+        perror("wait failed");
+        return false;
+    }
 /*
- * TODO:
+ * DONE:
  *   Execute a system command by calling fork, execv(),
  *   and wait instead of system (see LSP page 161).
  *   Use the command[0] as the full path to the command to execute
@@ -61,8 +78,6 @@ bool do_exec(int count, ...)
  *   as second argument to the execv() command.
  *
 */
-
-    va_end(args);
 
     return true;
 }
@@ -83,20 +98,33 @@ bool do_exec_redirect(const char *outputfile, int count, ...)
         command[i] = va_arg(args, char *);
     }
     command[count] = NULL;
-    // this line is to avoid a compile warning before your implementation is complete
-    // and may be removed
-    command[count] = command[count];
+    va_end(args);
+    
+    //redirect standard out to a file specified by outputfile.
+    int fd = open(outputfile, O_WRONLY|O_TRUNC|O_CREAT, 0644);
+    if (fd < 0) { perror("open the output file fail"); abort(); }
 
-
+    //The rest of the behaviour is same as do_exec()
+    pid_t pid = fork ();
+    if (pid < 0) {
+        perror("fork failed");
+        return false;
+    } else if (pid == 0) {
+        execv (command[0], command);
+        //this part should not be reached
+        perror("execv failed");
+        exit(EXIT_FAILURE);
+    }
+    if (wait(NULL) < 0) {
+        perror("wait failed");
+        return false;
+    }
 /*
- * TODO
+ * DONE
  *   Call execv, but first using https://stackoverflow.com/a/13784315/1446624 as a refernce,
  *   redirect standard out to a file specified by outputfile.
  *   The rest of the behaviour is same as do_exec()
  *
 */
-
-    va_end(args);
-
     return true;
 }
