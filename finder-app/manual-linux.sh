@@ -50,7 +50,7 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 fi
 
 #make image
-cd "$OUTDIR"
+cd -p "$OUTDIR"
 mkdir Image
 echo "Adding the Image in outdir"
 cp linux-stable/arch/${ARCH}/boot/Image/ Image/
