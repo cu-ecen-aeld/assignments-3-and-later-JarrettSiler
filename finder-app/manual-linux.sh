@@ -21,7 +21,10 @@ else
 	echo "Using passed directory ${OUTDIR} for output"
 fi
 
-mkdir -p ${OUTDIR}
+if [ ! -d "${OUTDIR}" ]; then
+    mkdir -p $OUTDIR
+fi
+sudo chown $USER:$USER ${OUTDIR}
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/linux-stable" ]; then
@@ -34,10 +37,22 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
     echo "Checking out version ${KERNEL_VERSION}"
     git checkout ${KERNEL_VERSION}
 
-    # TODO: Add your kernel build steps here
+    # DONE: Add your kernel build steps here
+    #clean step
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
+    #default configuration
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
+    #build vm linux target
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+    #build modules and device tree
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
+    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
 fi
 
+#make image
+cd linux-stable
 echo "Adding the Image in outdir"
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
@@ -47,34 +62,97 @@ then
     sudo rm  -rf ${OUTDIR}/rootfs
 fi
 
-# TODO: Create necessary base directories
+# DONE: Create necessary base directories
+mkdir -p ${OUTDIR}/rootfs/{bin,dev,etc,lib,lib64,proc,sys,sbin,tmp,usr,usr/lib,usr/bin,usr/sbin,var,var/log,home}
 
-cd "$OUTDIR"
+cd ${OUTDIR}
 if [ ! -d "${OUTDIR}/busybox" ]
 then
-git clone git://busybox.net/busybox.git
+    git clone git://busybox.net/busybox.git
     cd busybox
     git checkout ${BUSYBOX_VERSION}
-    # TODO:  Configure busybox
+    # DONE:  Configure busybox
+    make distclean
+    make defconfig
 else
     cd busybox
 fi
 
-# TODO: Make and install busybox
+# DONE: Make and install busybox
+make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE}
+make CONFIG_PREFIX=${OUTDIR}/rootfs ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} install
 
+cd ${OUTDIR}/rootfs
 echo "Library dependencies"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "program interpreter"
-${CROSS_COMPILE}readelf -a bin/busybox | grep "Shared library"
+${CROSS_COMPILE}readelf -a $OUTDIR/bin/busybox | grep "program interpreter"
+${CROSS_COMPILE}readelf -a $OUTDIR/bin/busybox | grep "Shared library"
 
-# TODO: Add library dependencies to rootfs
+# DONE: Add library dependencies to rootfs
+REQD_LIBRARIES=$(${CROSS_COMPILE}readelf -a $OUTDIR/bin/busybox | grep "Shared library" | awk -F'[][]' '{print $2}' )
+for LIB in ${REQD_LIBRARIES}; do
+    LIB_PATH=$(find $(aarch64-none-linux-gnu-gcc --print-sysroot) -name "$LIB")
 
-# TODO: Make device nodes
+    if [ -n "$LIB_PATH" ]; then
+        echo "Copying $LIB_PATH to $OUTDIR/rootfs/lib64 and $OUTDIR/rootfs/lib"
+        cp $LIB_PATH ${OUTDIR}/rootfs/lib64
+        cp $LIB_PATH ${OUTDIR}/rootfs/lib
+    else
+        echo "Library $LIB not found!"
+    fi
+done
+cp $(aarch64-none-linux-gnu-gcc --print-sysroot)/lib/ld-linux-aarch64.so.1 ${OUTDIR}/rootfs/lib/
 
-# TODO: Clean and build the writer utility
+# DONE: Make device nodes
+create_device_node() {
+    local node="$1"
+    local type="$2"
+    local major="$3"
+    local minor="$4"
 
-# TODO: Copy the finder related scripts and executables to the /home directory
+    #if [ ! -d "$(dirname "$node")" ]; then
+    if [ ! -e "$node" ]; then
+        sudo mknod -m 666 "$node" "$type" "$major" "$minor"
+        echo "Created $node"
+    else
+        echo "$node already exists"
+    fi
+}
+create_device_node "${OUTDIR}/rootfs/dev/null" c 1 3
+create_device_node "${OUTDIR}/rootfs/dev/zero" c 1 5
+create_device_node "${OUTDIR}/rootfs/dev/random" c 1 8
+create_device_node "${OUTDIR}/rootfs/dev/console" c 5 1
+
+# DONE: Clean and build the writer utility
+cd ${FINDER_APP_DIR}
+make clean
+${CROSS_COMPILE}gcc -o writer writer.c
+cp writer ${OUTDIR}/rootfs/home/
+
+# DONE: Copy the finder related scripts and executables to the /home directory
 # on the target rootfs
+PARENT_DIR=$(dirname "$FINDER_APP_DIR")
+cd ${OUTDIR}
+mkdir -p rootfs/home/conf
 
-# TODO: Chown the root directory
+cp ${PARENT_DIR}/conf/username.txt rootfs/home/conf/
+cp ${PARENT_DIR}/conf/assignment.txt rootfs/home/conf/
+cp ${FINDER_APP_DIR}/finder.sh rootfs/home/
+cp ${FINDER_APP_DIR}/finder-test.sh rootfs/home/
+cp ${FINDER_APP_DIR}/autorun-qemu.sh rootfs/home/
 
-# TODO: Create initramfs.cpio.gz
+# DONE: Chown the root directory
+sudo chown -R root:root ${OUTDIR}/rootfs
+
+#for  earlier issues:
+#sudo rm -f ${OUTDIR}/rootfs/initramfs.cpio
+
+# DONE: Create initramfs.cpio.gz
+cd ${OUTDIR}/rootfs
+sudo chown -R root:root *
+find . | cpio -H newc -ov --owner root:root > ${OUTDIR}/initramfs.cpio
+cd ${OUTDIR}
+gzip -f initramfs.cpio
+
+#did it get created?
+echo -n "location of initramfs.cpio.gz: "
+ls -l ${OUTDIR}/initramfs.cpio.gz
