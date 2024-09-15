@@ -51,7 +51,7 @@ fi
 
 #make image
 cd "$OUTDIR"
-mkdir -p Image
+mkdir Image
 echo "Adding the Image in outdir"
 cp linux-stable/arch/${ARCH}/boot/Image/ Image/
 
