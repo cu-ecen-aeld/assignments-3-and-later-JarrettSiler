@@ -5,7 +5,6 @@
 set -e
 set -u
 
-USER=${USER:-default_user}
 OUTDIR=/tmp/aeld
 KERNEL_REPO=git://git.kernel.org/pub/scm/linux/kernel/git/stable/linux-stable.git
 KERNEL_VERSION=v5.15.163
@@ -25,7 +24,7 @@ fi
 if [ ! -d "${OUTDIR}" ]; then
     mkdir -p $OUTDIR
 fi
-sudo chown $USER:$USER ${OUTDIR}
+sudo chown root:root ${OUTDIR}
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/linux-stable" ]; then
@@ -52,8 +51,9 @@ fi
 
 #make image
 cd linux-stable
+mkdir -p ${OUTDIR}/Image
 echo "Adding the Image in outdir"
-cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/Image
+cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/Image/
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
