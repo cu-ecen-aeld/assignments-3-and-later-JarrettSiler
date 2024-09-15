@@ -50,10 +50,10 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 fi
 
 #make image
-cd linux-stable
+cd "$OUTDIR"/linux-stable
 mkdir -p ${OUTDIR}/Image
 echo "Adding the Image in outdir"
-cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/Image/
+cp arch/${ARCH}/boot/Image/ Image/
 
 echo "Creating the staging directory for the root filesystem"
 cd "$OUTDIR"
