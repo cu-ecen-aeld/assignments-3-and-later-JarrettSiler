@@ -91,7 +91,7 @@ ${CROSS_COMPILE}readelf -a $OUTDIR/rootfs/bin/busybox | grep "program interprete
 ${CROSS_COMPILE}readelf -a $OUTDIR/rootfs/bin/busybox | grep "Shared library"
 
 # DONE: Add library dependencies to rootfs
-REQD_LIBRARIES=$(${CROSS_COMPILE}readelf -a $OUTDIR/bin/busybox | grep "Shared library" | awk -F'[][]' '{print $2}' )
+REQD_LIBRARIES=$(${CROSS_COMPILE}readelf -a $OUTDIR/rootfs/bin/busybox | grep "Shared library" | awk -F'[][]' '{print $2}' )
 for LIB in ${REQD_LIBRARIES}; do
     LIB_PATH=$(find $(aarch64-none-linux-gnu-gcc --print-sysroot) -name "$LIB")
 
