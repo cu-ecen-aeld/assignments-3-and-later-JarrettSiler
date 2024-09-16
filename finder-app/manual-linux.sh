@@ -87,8 +87,8 @@ make -j${NPROC} ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} CONFIG_PREFIX=${OUTD
 ls ${OUTDIR}/rootfs/bin/busybox
 
 echo "Library dependencies"
-${CROSS_COMPILE}readelf -a $OUTDIR/bin/busybox | grep "program interpreter"
-${CROSS_COMPILE}readelf -a $OUTDIR/bin/busybox | grep "Shared library"
+${CROSS_COMPILE}readelf -a $OUTDIR/rootfs/bin/busybox | grep "program interpreter"
+${CROSS_COMPILE}readelf -a $OUTDIR/rootfs/bin/busybox | grep "Shared library"
 
 # DONE: Add library dependencies to rootfs
 REQD_LIBRARIES=$(${CROSS_COMPILE}readelf -a $OUTDIR/bin/busybox | grep "Shared library" | awk -F'[][]' '{print $2}' )
