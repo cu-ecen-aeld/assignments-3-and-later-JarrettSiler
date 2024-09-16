@@ -13,8 +13,6 @@ FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
 
-sudo chown -R $(whoami):$(whoami) /tmp/aesd-autograder
-
 if [ $# -lt 1 ]
 then
 	echo "Using default directory ${OUTDIR} for output"
