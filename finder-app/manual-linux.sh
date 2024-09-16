@@ -12,6 +12,7 @@ BUSYBOX_VERSION=1_33_1
 FINDER_APP_DIR=$(realpath $(dirname $0))
 ARCH=arm64
 CROSS_COMPILE=aarch64-none-linux-gnu-
+NPROC=$(nproc)
 
 if [ $# -lt 1 ]
 then
@@ -28,7 +29,6 @@ sudo chown $(whoami):$(whoami) ${OUTDIR}
 
 cd "$OUTDIR"
 if [ ! -d "${OUTDIR}/linux-stable" ]; then
-    mkdir -p ${OUTDIR}/linux-stable
     #Clone only if the repository does not exist.
 	echo "CLONING GIT LINUX STABLE VERSION ${KERNEL_VERSION} IN ${OUTDIR}"
 	git clone ${KERNEL_REPO} --depth 1 --single-branch --branch ${KERNEL_VERSION}
@@ -40,11 +40,11 @@ if [ ! -e ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ]; then
 
     # DONE: Add your kernel build steps here
     #clean step
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
+    #make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} mrproper
     #default configuration
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} defconfig
     #build vm linux target
-    make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
+    make -j${NPROC} ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} all
     #build modules and device tree
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} modules
     make ARCH=${ARCH} CROSS_COMPILE=${CROSS_COMPILE} dtbs
@@ -52,7 +52,7 @@ fi
 
 #make image
 
-cd linux-stable
+cd ${OUTDIR}/linux-stable
 echo "Adding the Image in outdir"
 cp ${OUTDIR}/linux-stable/arch/${ARCH}/boot/Image ${OUTDIR}/
 
