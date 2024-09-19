@@ -13,6 +13,9 @@ endif
 writer: writer.c
 	$(CC) -o writer writer.c
 
+all:
+	$(CC) -o writer writer.c
+
 #remove the build files
 clean:
 	rm -f writer
