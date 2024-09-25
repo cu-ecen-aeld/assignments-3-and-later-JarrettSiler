@@ -14,79 +14,103 @@
 //Defining Constants and Global Variables
 #define PORT 9000
 #define BACKLOG 10
-#define DATA_FILE "/var/tmp/aesdsocketdata"
+#define FILE_OI "/var/tmp/aesdsocketdata"
 #define BUFFER_SIZE 1024
 
-volatile sig_atomic_t run = 1; // Flag for main loop
+int run = 1; // Flag for main loop
 int server_fd = -1, client_fd = -1; // File descriptors
 
-//Signal Handler
-void signal_handler(int signo) {
-    syslog(LOG_INFO, "Caught signal %d, exiting", signo);
-    run = 0;
+//cleanup steps
+void cleanup() {
     if (server_fd != -1) close(server_fd);
     if (client_fd != -1) close(client_fd);
+    if (remove(FILE_OI) != 0) syslog(LOG_ERR, "Failed to remove file: %s", strerror(errno));
+    syslog(LOG_INFO, "Cleanup was reached!");
+    closelog();
 }
 
-//Main Function Structure
+//Signal Handler
+void signal_handler(int sign) {
+    if (sign == SIGINT || sign == SIGTERM) {
+        syslog(LOG_INFO, "Caught signal, exiting");
+        run = 0;
+        cleanup();
+        return;
+    }
+}
+
+int modify_file(int client_fd) {
+    char buffer[1024];
+    int bytes_received;
+    FILE *fs = fopen(FILE_OI, "a+");
+    if (!fs) {
+        syslog(LOG_ERR, "Server failed to open file: %s", strerror(errno));
+        return -1;
+    }
+    while ((bytes_received = recv(client_fd, buffer, sizeof(buffer) - 1, 0)) > 0) {
+        buffer[bytes_received] = '\0';
+        fputs(buffer, fs);
+        fflush(fs); 
+        if (strchr(buffer, '\n')) break;
+    }
+    fseek(fs, 0, SEEK_SET);
+    while ((bytes_received = fread(buffer, 1, sizeof(buffer), fs)) > 0) {
+        send(client_fd, buffer, bytes_received, 0);
+    }
+    fclose(fs);
+    return 0;
+}
+
+
+//Server structure
 int main(int argc, char *argv[]) {
+    
+    // Initialize syslog and signal handling
+    openlog("aesdsocket", LOG_PID, LOG_USER);
+    signal(SIGINT, signal_handler);
+    signal(SIGTERM, signal_handler);
+
+    ////////////////////////////////////////////////////////////
+    //check if dameon mode is selected, then run it if so
     int opt;
     int daemon_mode = 0;
-    // Initialize syslog
-    openlog("aesdsocket", LOG_PID, LOG_USER);
-
-    // Parse command-line arguments
-    while ((opt = getopt(argc, argv, "d")) != -1) {
-        switch (opt) {
-            case 'd':
-                daemon_mode = 1;
-                break;
-            default:
-                fprintf(stderr, "Usage: %s [-d]\n", argv[0]);
-                exit(EXIT_FAILURE);
-        }
-    }
-
-    //daemon mode
+    opt = getopt(argc, argv, "d");
+    if (opt == 'd') daemon_mode = 1;
     if (daemon_mode) {
         pid_t pid = fork();
         if (pid < 0) {
             syslog(LOG_ERR, "Fork failed: %s", strerror(errno));
-            exit(EXIT_FAILURE);
+            cleanup();
+            return -1;
         }
         if (pid > 0) {
-            // Parent exits
-            exit(EXIT_SUCCESS);
+            syslog(LOG_INFO, "running daemonized");
+            return 0;
         }
 
-        // Child continues
-        if (setsid() < 0) {
-            syslog(LOG_ERR, "setsid failed: %s", strerror(errno));
-            exit(EXIT_FAILURE);
-        }
-
-        // Redirect standard file descriptors to /dev/null
-        freopen("/dev/null", "r", stdin);
-        freopen("/dev/null", "w", stdout);
-        freopen("/dev/null", "w", stderr);
+        //stop output to the terminal
+        close(STDIN_FILENO);
+        close(STDOUT_FILENO);
+        close(STDERR_FILENO);
     }
-
-    // Register signal handlers
-    struct sigaction sa;
-    sa.sa_handler = signal_handler;
-    sigemptyset(&sa.sa_mask);
-    sa.sa_flags = 0;
-    if (sigaction(SIGINT, &sa, NULL) == -1 || sigaction(SIGTERM, &sa, NULL) == -1) {
-        syslog(LOG_ERR, "Error registering signal handlers: %s", strerror(errno));
-        exit(EXIT_FAILURE);
-    }
+    ////////////////////////////////////////////////////////////
 
     // Create socket
-    server_fd = socket(AF_INET, SOCK_STREAM, 0);
-    if (server_fd == -1) {
+    server_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+    if (server_fd == -1) { //socket error handling
         syslog(LOG_ERR, "Error creating socket: %s", strerror(errno));
-        exit(EXIT_FAILURE);
+        cleanup();
+        return -1;
     }
+
+    // Allow socket to be reused
+    int opt_val = 1;
+    if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof(opt_val)) < 0) {
+        syslog(LOG_ERR, "Error setting socket options: %s", strerror(errno));
+        cleanup();
+        return -1;
+    }
+
 
     // Bind socket to port 9000
     struct sockaddr_in server_addr;
@@ -95,28 +119,33 @@ int main(int argc, char *argv[]) {
     server_addr.sin_addr.s_addr = INADDR_ANY; // Bind to all interfaces
     server_addr.sin_port = htons(PORT);
 
+    //error handling
+
     if (bind(server_fd, (struct sockaddr *)&server_addr, sizeof(server_addr)) == -1) {
         syslog(LOG_ERR, "Error binding socket: %s", strerror(errno));
         close(server_fd);
-        exit(EXIT_FAILURE);
+        cleanup();
+        return -1;
     }
 
     // Listen for connections
+    struct sockaddr_in client_addr;
     if (listen(server_fd, BACKLOG) == -1) {
         syslog(LOG_ERR, "Error listening on socket: %s", strerror(errno));
         close(server_fd);
-        exit(EXIT_FAILURE);
+        cleanup();
+        return -1;
     }
 
-    // Main loop to accept and handle connections
+    //////////////////////////////////////////////////////////////////////////////////////////
+    // handle connections
     while (run) {
-        struct sockaddr_in client_addr;
+
         socklen_t client_len = sizeof(client_addr);
         client_fd = accept(server_fd, (struct sockaddr *)&client_addr, &client_len);
         if (client_fd == -1) {
-            if (errno == EINTR) continue; // Interrupted by signal
-            syslog(LOG_ERR, "Error accepting connection: %s", strerror(errno));
-            break;
+            //syslog(LOG_ERR, "Failed to accept connection: %s", strerror(errno));
+            continue;
         }
 
         // Log accepted connection
@@ -124,120 +153,20 @@ int main(int argc, char *argv[]) {
         inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
         syslog(LOG_INFO, "Accepted connection from %s", client_ip);
 
-        // Handle client
-        char buffer[BUFFER_SIZE];
-        char *data = NULL;
-        size_t data_size = 0;
-
-        // Open or create the data file for appending
-        FILE *fp = fopen(DATA_FILE, "a+");
-        if (fp == NULL) {
-            syslog(LOG_ERR, "Error opening data file: %s", strerror(errno));
-            close(client_fd);
-            client_fd = -1;
-            continue;
+        // Handle client requests
+        int result = modify_file(client_fd);
+        if (result < 0) {
+            syslog(LOG_ERR, "Error handling request from %s", client_ip);
+        } else if (result == 0) {
+            // Indicate that the client has disconnected properly
+            syslog(LOG_INFO, "Client %s disconnected", client_ip);
         }
 
-        // Receive data until a newline is found
-        int newline_found = 0;
-        while (!newline_found && run) {
-            ssize_t bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0);
-            if (bytes_received == -1) {
-                if (errno == EINTR) continue;
-                syslog(LOG_ERR, "Error receiving data: %s", strerror(errno));
-                break;
-            } else if (bytes_received == 0) {
-                // Connection closed by client
-                break;
-            }
-
-            // Search for newline
-            for (ssize_t i = 0; i < bytes_received; i++) {
-                if (buffer[i] == '\n') {
-                    newline_found = 1;
-                    bytes_received = i + 1; // Include newline
-                    break;
-                }
-            }
-
-            // Allocate or reallocate memory to store received data
-            char *temp = realloc(data, data_size + bytes_received + 1);
-            if (temp == NULL) {
-                syslog(LOG_ERR, "Memory allocation failed");
-                free(data);
-                data = NULL;
-                break;
-            }
-            data = temp;
-            memcpy(data + data_size, buffer, bytes_received);
-            data_size += bytes_received;
-            data[data_size] = '\0'; // Null-terminate
-
-            // If newline found, stop receiving
-            if (newline_found) break;
-        }
-
-        // Write received data to file
-        if (data != NULL) {
-            fprintf(fp, "%s", data);
-            fclose(fp);
-            fp = NULL;
-
-            // Send back the entire file content
-            fp = fopen(DATA_FILE, "r");
-            if (fp == NULL) {
-                syslog(LOG_ERR, "Error opening data file for reading: %s", strerror(errno));
-                free(data);
-                data = NULL;
-                close(client_fd);
-                client_fd = -1;
-                continue;
-            }
-
-            // Determine file size
-            fseek(fp, 0, SEEK_END);
-            long file_size = ftell(fp);
-            rewind(fp);
-
-            // Allocate buffer to read file content
-            char *file_buffer = malloc(file_size);
-            if (file_buffer == NULL) {
-                syslog(LOG_ERR, "Memory allocation failed for file content");
-                fclose(fp);
-                free(data);
-                data = NULL;
-                close(client_fd);
-                client_fd = -1;
-                continue;
-            }
-
-            // Read file content
-            fread(file_buffer, 1, file_size, fp);
-            fclose(fp);
-            fp = NULL;
-
-            // Send file content to client
-            ssize_t bytes_sent = send(client_fd, file_buffer, file_size, 0);
-            if (bytes_sent == -1) {
-                syslog(LOG_ERR, "Error sending data to client: %s", strerror(errno));
-            }
-
-            free(file_buffer);
-            free(data);
-            data = NULL;
-        }
-
-        // Log closed connection
-        syslog(LOG_INFO, "Closed connection from %s", client_ip);
         close(client_fd);
         client_fd = -1;
     }
-
-    // Cleanup
-    close(server_fd);
-    closelog();
-    // Remove data file
-    unlink(DATA_FILE);
-
+    
+    syslog(LOG_INFO, "The end of the script was reached gracefully!");
+    cleanup();
     return 0;
 }
