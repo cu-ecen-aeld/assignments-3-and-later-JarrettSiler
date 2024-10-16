@@ -1,4 +1,4 @@
-#CC=aarch64-none-linux-gnu-gcc
+CC=aarch64-none-linux-gnu-gcc
 CFLAGS=-Wall
 TARGET=aesdsocket
 
