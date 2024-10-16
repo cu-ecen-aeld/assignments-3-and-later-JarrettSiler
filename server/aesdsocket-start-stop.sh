@@ -2,7 +2,7 @@ case "$1" in
     start)
         echo "Starting aesdsocket"
         #start command
-        start-stop-daemon --start --oknodo --make-pidfile --pidfile /var/run/aesdsocket.pid --chdir /home/jarrett/projects/assignments-3-and-later-JarrettSiler/server --exec ./aesdsocket -- -d; then
+        start-stop-daemon --start --oknodo --make-pidfile --pidfile /var/run/aesdsocket.pid --chdir /home/jarrett/projects/assignments-3-and-later-JarrettSiler/server --exec ./aesdsocket -- -d
         ;;
     stop)
         echo "Stopping aesdsocket"
