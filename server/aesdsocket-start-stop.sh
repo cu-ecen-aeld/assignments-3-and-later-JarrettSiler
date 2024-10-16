@@ -1,12 +1,12 @@
 case "$1" in
     start)
-        echo "Starting aesdsocket"
         #start command
-        start-stop-daemon --start --oknodo --make-pidfile --pidfile /var/run/aesdsocket.pid --chdir /home/jarrett/projects/assignments-3-and-later-JarrettSiler/server --exec ./aesdsocket -- -d
+        start-stop-daemon -S -n aesdsocket -a /usr/bin/
+        echo "Starting aesdsocket"
         ;;
     stop)
+        start-stop-daemon -K -n aesdsocket
         echo "Stopping aesdsocket"
-        start-stop-daemon --stop --signal SIGTERM --pidfile /var/run/aesdsocket.pid
         ;;
     *)
         echo "Usage: $0 {start|stop}"
